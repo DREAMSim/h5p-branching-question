@@ -7,6 +7,13 @@ H5P.BranchingQuestion = (function () {
     H5P.EventDispatcher.call(self);
     this.container = null;
     let answered;
+    let minutes = parameters.behaviour.minutes * 60 || 0;
+    let seconds = parameters.behaviour.seconds || 0;
+    this.isTimerNeeded = parameters.addTimer || false;
+    this.initialTime = minutes + seconds;
+    this.timeRemaining = this.initialTime;
+    this.started = false;
+    this.timerInterval = null;
 
     /**
      * Get closest ancestor of DOM element that matches selector.
@@ -35,18 +42,44 @@ H5P.BranchingQuestion = (function () {
       return null;
     };
 
-    var createWrapper = function () {
+    var createWrapper = function (isTimerNeeded) {
       var wrapper = document.createElement('div');
       wrapper.classList.add('h5p-branching-question');
+
+      const header = document.createElement('header');
 
       var icon = document.createElement('img');
       icon.classList.add('h5p-branching-question-icon');
       icon.src = self.getLibraryFilePath('branching-question-icon.svg');
 
-      wrapper.appendChild(icon);
+      const timer = appendTimer();
+      header.appendChild(timer);
+      header.appendChild(icon);
+      if (isTimerNeeded) {
+        wrapper.appendChild(header);
+      } else {
+        wrapper.appendChild(icon);
+      }
 
       return wrapper;
     };
+
+    var appendTimer = () => {
+      var timerWrapper = document.createElement('div');
+      timerWrapper.classList.add('h5p-timer-wrapper');
+
+      var canvas = document.createElement('canvas');
+      canvas.classList.add('h5p-timer-canvas');
+      canvas.width = 260;
+      canvas.height = 200;
+      canvas.style.width = "130px";
+      canvas.style.height = "100px";
+      updateCanvas(canvas, this.timeRemaining, this.initialTime);
+
+      timerWrapper.append(canvas);
+
+      return timerWrapper;
+    }
 
     var appendMultiChoiceSection = function (parameters, wrapper) {
       var questionWrapper = document.createElement('div');
@@ -140,6 +173,13 @@ H5P.BranchingQuestion = (function () {
         };
         questionWrapper.appendChild(alternative);
       });
+
+      // Add alternative to go back
+      const currentId = self.parent.getUserPath().slice(-1)[0] || -1;
+      if (currentId >= 0 && self.parent.canEnableBackButton(currentId) === true && self.parent.getUserPath().length > 1) {
+        const alternativeBack = self.createAlternativeBackContainer(self.parent.params.l10n.backButtonText);
+        questionWrapper.appendChild(alternativeBack);
+      }
 
       wrapper.appendChild(questionWrapper);
       return wrapper;
@@ -240,6 +280,26 @@ H5P.BranchingQuestion = (function () {
     };
 
     /**
+     * Create alternative container for going back.
+     * @param {string} text Text for the container.
+     * @param {HTMLElement} Alternative container.
+     */
+    self.createAlternativeBackContainer = function (text) {
+      const self = this;
+
+      const alternativeBack = createAlternativeContainer(text);
+      alternativeBack.classList.add('h5p-branching-question-alternative-back');
+
+      alternativeBack.addEventListener('click', function () {
+        self.trigger('navigated', {
+          reverse: true
+        });
+      });
+
+      return alternativeBack;
+    };
+
+    /**
      * Get xAPI data.
      * Contract used by report rendering engine.
      *
@@ -291,11 +351,85 @@ H5P.BranchingQuestion = (function () {
     /**
      * TODO
      */
+    const updateCanvas = function(canvas, initialTime, timeRemaining) {
+      const totalLength = (2 * Math.PI) * 0.75;
+      const percentComplete = 1 - timeRemaining / initialTime;
+      const context = canvas.getContext('2d');
+      const middleX = canvas.width / 4;
+      const middleY = canvas.height / 3.25;
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.save();
+      context.scale(2,2);
+      // draw background
+      context.beginPath()
+      context.arc(middleX, middleY, 60, 0, 2 * Math.PI);
+      context.fillStyle = "white";
+      context.fill();
+      context.fillStyle = 'black';
+      context.font = "15px H5PFontAwesome4";
+      context.textAlign = "center";
+      if (timeRemaining > 60) {
+        let minutes = Math.floor(timeRemaining / 60);
+        let seconds = timeRemaining - minutes * 60;
+        if (Math.ceil(seconds) < 10) context.fillText(`${minutes}:0${Math.ceil(seconds)}s`, middleX, middleY)
+        else context.fillText(`${minutes}:${Math.ceil(seconds)}s`, middleX, middleY);
+      } else {
+        context.fillText(`${Math.ceil(timeRemaining)}s`, middleX, middleY);
+      }
+      context.translate(middleX, middleY);
+      context.rotate(Math.PI * 0.75);
+      context.translate(-middleX, -middleY);
+      context.strokeStyle = "green"
+      if (Math.ceil(timeRemaining) < 10) {
+        context.strokeStyle = "red";
+      };
+      context.beginPath();
+      context.arc(middleX, middleY, 45, totalLength * percentComplete, totalLength);
+      context.lineWidth = 10;
+      context.stroke();
+      context.strokeStyle = "gray";
+      context.beginPath();
+      context.arc(middleX, middleY, 45, 0, totalLength * percentComplete);
+      context.stroke();
+      context.restore();
+    }
+
+    self.on("domChanged", (e) => {
+      if (e.data.$target[0].className === "h5p-branching-question-wrapper" && !this.started) {
+        const nextContentId = this.parent.currentId - 1;
+        if (this.isTimerNeeded) {
+          this.started = true;
+          this.timerInterval = setInterval(() => {
+            const canvas = document.querySelector('canvas');
+            if (!canvas) clearInterval(this.timerInterval);
+
+              updateCanvas(canvas, this.initialTime, parseFloat(this.timeRemaining.toFixed(1)));
+
+            if (parseFloat(this.timeRemaining.toFixed(1)) < 0) {
+              clearInterval(this.timerInterval);
+
+              var nextScreen = {
+                nextContentId,
+              };
+
+              self.trigger('navigated', nextScreen);
+            };
+            this.timeRemaining -= .1;
+          }, 100);
+        }
+      }
+    });
+
+    // self.on('navigated', () => clearInterval(this.timerInterval));
+
     self.attach = function ($container) {
+      // Disable back button of underlying library screen
+      self.parent.disableBackButton();
+
       var questionContainer = document.createElement('div');
       questionContainer.classList.add('h5p-branching-question-container');
 
-      var branchingQuestion = createWrapper(parameters);
+      var branchingQuestion = createWrapper(this.isTimerNeeded);
       branchingQuestion = appendMultiChoiceSection(parameters, branchingQuestion);
       trapFocus(branchingQuestion);
 

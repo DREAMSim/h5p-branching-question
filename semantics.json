@@ -13,16 +13,7 @@
         "widget": "html",
         "label": "Question",
         "enterMode": "p",
-        "tags": [
-          "strong",
-          "em",
-          "sub",
-          "sup",
-          "h2",
-          "h3",
-          "pre",
-          "code"
-        ]
+        "tags": ["strong", "em", "sub", "sup", "h2", "h3", "pre", "code"]
       },
       {
         "name": "alternatives",
@@ -64,13 +55,7 @@
                   "optional": true,
                   "widget": "html",
                   "enterMode": "p",
-                  "tags": [
-                    "strong",
-                    "em",
-                    "del",
-                    "code",
-                    "a"
-                  ]
+                  "tags": ["strong", "em", "del", "code", "a"]
                 },
                 {
                   "name": "subtitle",
@@ -79,13 +64,7 @@
                   "optional": true,
                   "widget": "html",
                   "enterMode": "p",
-                  "tags": [
-                    "strong",
-                    "em",
-                    "del",
-                    "code",
-                    "a"
-                  ]
+                  "tags": ["strong", "em", "del", "code", "a"]
                 },
                 {
                   "name": "image",
@@ -104,6 +83,47 @@
             }
           ]
         }
+      }
+    ]
+  },
+  {
+    "name": "addTimer",
+    "type": "boolean",
+    "label": "Add a timer",
+    "default": false
+  },
+  {
+    "name": "behaviour",
+    "type": "group",
+    "label": "Behavioural settings",
+    "importance": "low",
+    "description": "These options will let you control how the game behaves.",
+    "optional": true,
+    "widget": "showWhen",
+    "showWhen": {
+      "rules": [
+        {
+          "field": "addTimer",
+          "equals": true
+        }
+      ]
+    },
+    "fields": [
+      {
+        "name": "minutes",
+        "type": "number",
+        "label": "Minutes",
+        "description": "Please enter the minute",
+        "optional": true,
+        "default": 0
+      },
+      {
+        "name": "seconds",
+        "type": "number",
+        "label": "Seconds",
+        "description": "Please enter the seconds",
+        "optional": true,
+        "default": 0
       }
     ]
   }
